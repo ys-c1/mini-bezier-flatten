@@ -9,59 +9,50 @@ static int append_point(float *out, int out_cap, int *count, float x, float y)
 {
     int index;
 
-    if (*count >= out_cap) {
-        return -1;
-    }
-
+    /* B3: the capacity check happens after the write. */
     index = *count;
     out[2 * index] = x;
     out[2 * index + 1] = y;
     *count = index + 1;
+
+    if (*count > out_cap) {
+        return -1;
+    }
     return 0;
 }
 
-static float point_line_distance(const float *a, const float *b,
-                                 const float *p)
+static float point_distance(const float *a, const float *b)
 {
-    float dx = b[0] - a[0];
-    float dy = b[1] - a[1];
-    float len2 = dx * dx + dy * dy;
-    float cross;
-
-    if (len2 <= 0.0f) {
-        return hypotf(p[0] - a[0], p[1] - a[1]);
-    }
-
-    cross = (p[0] - a[0]) * dy - (p[1] - a[1]) * dx;
-    return fabsf(cross) / sqrtf(len2);
+    return hypotf(a[0] - b[0], a[1] - b[1]);
 }
 
 static float cubic_flatness(const float *p0, const float *c0,
                             const float *c1, const float *p1)
 {
-    float d0 = point_line_distance(p0, p1, c0);
-    float d1 = point_line_distance(p0, p1, c1);
-
-    return d0 > d1 ? d0 : d1;
+    /* B1: use half of the control-point distance sum. */
+    return 0.5f * (point_distance(p0, c0) + point_distance(c1, p1));
 }
 
 static float quad_flatness(const float *p0, const float *c0,
                            const float *p1)
 {
-    return point_line_distance(p0, p1, c0);
+    /* B1: use half of the control-point distance sum. */
+    return 0.5f * (point_distance(p0, c0) + point_distance(c0, p1));
 }
 
 static int cubic_is_flat(const float *p0, const float *c0,
                          const float *c1, const float *p1,
                          float tolerance)
 {
-    return cubic_flatness(p0, c0, c1, p1) <= tolerance;
+    /* B1: inverted comparison: smaller tolerances subdivide less. */
+    return cubic_flatness(p0, c0, c1, p1) >= tolerance;
 }
 
 static int quad_is_flat(const float *p0, const float *c0,
                         const float *p1, float tolerance)
 {
-    return quad_flatness(p0, c0, p1) <= tolerance;
+    /* B1: inverted comparison: smaller tolerances subdivide less. */
+    return quad_flatness(p0, c0, p1) >= tolerance;
 }
 
 static int flatten_cubic_rec(const float *p0, const float *c0,
@@ -153,6 +144,11 @@ int flatten_cubic(const float *p0, const float *c0, const float *c1,
         return -1;
     }
 
+    /* B2: drop the final vertex, so the output does not include p1. */
+    if (count > 1) {
+        --count;
+    }
+
     *out_count = count;
     return 0;
 }
@@ -179,6 +175,11 @@ int flatten_quad(const float *p0, const float *c0, const float *p1,
     if (flatten_quad_rec(p0, c0, p1, tolerance, 0,
                          out, out_cap, &count) != 0) {
         return -1;
+    }
+
+    /* B2: drop the final vertex, so the output does not include p1. */
+    if (count > 1) {
+        --count;
     }
 
     *out_count = count;

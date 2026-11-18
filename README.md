@@ -43,3 +43,22 @@ remove build output.
 - `src/flatten.c` - adaptive quadratic/cubic flattening
 - `tests/test_flatten.c` - assertion-based test suite
 - `Makefile` - build and test targets
+
+## Intentional bugs in the current HEAD
+
+This repository is a two-commit exercise. The first commit contains the
+correct implementation and passes all 42 checks. The current HEAD
+intentionally ships three defects in `src/flatten.c`; the test suite is not
+modified between the two versions.
+
+1. **B1** - Cubic and quadratic flatness use half of the sum of control-point
+   distances, and the tolerance comparison is reversed (`>=`). As a result,
+   making the tolerance smaller produces fewer, not more, vertices.
+2. **B2** - After flattening, the top-level API drops the last vertex, so the
+   reported polyline does not end at `p1`.
+3. **B3** - `append_point()` writes a vertex before checking capacity. With a
+   one-point buffer the endpoint write lands one point past the end, which is
+   detected by the test's guard-byte sentinels.
+
+Current buggy result: `checks=42 failures=15` (all assertion failures, no
+crash). Correct baseline result: `checks=42 failures=0`.
